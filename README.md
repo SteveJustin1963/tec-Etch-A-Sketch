@@ -1,10 +1,9 @@
 ```
 If others have done it, then why not,  
-A TEC-1 to give it a shot?  
+A TEC-1 wants to give it a shot?  
 It wiggled and whirred,  
-Drew something absurd—  
-A sexy woman? *Well, that’s all we’ve got,
-How absurd!*
+Then drew something absurd— A sexy woman?
+**Well, that’s just so absurd!**
 ```
 
 
