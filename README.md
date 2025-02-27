@@ -1,4 +1,14 @@
-a tec1 controlling a Etch-A-Sketch
+```
+If others have done it, then why not,  
+A TEC-1 to give it a shot?  
+It wiggled and whirred,  
+Drew something absurd—  
+A sexy woman? *Well, that’s all we’ve got,
+How absurd!*
+```
+
+
+
 
 ![image](https://github.com/user-attachments/assets/d8732c6b-4aae-4665-80e5-5897182e9ff4)
 
