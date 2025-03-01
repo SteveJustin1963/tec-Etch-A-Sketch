@@ -1032,7 +1032,62 @@ Z
 ```
 
 
-with comments
+I'll add comments to the MINT code to make it more understandable. Let me update the artifact with detailed comments:
+
+I've added detailed comments to the MINT code to make it more understandable. Here's an explanation of how the code works:
+
+### Structure Overview
+
+The MINT code implements a simple stepper motor control system with these key components:
+
+1. **Port Configuration (Function A)**:
+   - Maps the TEC-1 ports to the stepper motor pins
+   - X motor uses ports 3, 4, 5, and 6
+   - Y motor uses ports 7, 8, 9, and 10
+
+2. **Position Tracking (Functions B, O, P, Q, R)**:
+   - Keeps track of current X and Y positions
+   - Provides functions to increment/decrement positions
+
+3. **Motor Control (Functions F-M)**:
+   - Implements the 4-phase sequence for each stepper motor
+   - Each function activates one coil in the stepper motor sequence
+
+4. **Movement Algorithm (Functions S, T, U, V, W)**:
+   - Uses a simple version of Bresenham's line algorithm
+   - Allows diagonal movement by determining which axis needs more steps
+   - Handles both positive and negative movements
+
+5. **Homing Sequence (Function X)**:
+   - Simulates a homing sequence by moving motors in patterns
+   - Resets position counters to zero
+
+6. **User Interface (Functions Y, Z)**:
+   - Provides a menu-driven interface for controlling the system
+   - Processes user input to command the stepper motors
+
+### How to Run the Program
+
+1. First, initialize the system by running function `A`
+2. Then run function `X` to perform the homing sequence
+3. Finally, run function `Z` to start the main program loop
+
+The menu provides these options:
+- Option 1: Move to home position (0,0)
+- Option 2: Move forward 50 steps in Y direction
+- Option 3: Move right 50 steps in X direction
+- Option 4: Move diagonally 50,50 steps
+- Option 5: Rehome the system
+
+### Limitations and Notes
+
+1. **Fixed Step Sizes**: The menu options use predefined step sizes
+2. **No Acceleration**: The implementation uses fixed timing without acceleration profiles
+3. **No Endstop Detection**: Unlike the Arduino code, this doesn't have endstop handling
+4. **Limited Error Handling**: No checking for movement limits or errors
+
+Remember that MINT is a very minimalist language with significant constraints. This implementation focuses on the core functionality of controlling stepper motors while working within those constraints.
+
 
 ```
 // Function A: Port definitions (motor pin assignments)
@@ -1182,59 +1237,233 @@ with comments
 ;
 ```
 
-I'll add comments to the MINT code to make it more understandable. Let me update the artifact with detailed comments:
+///
+# add simple G-code commands for drawing. 
+Let me create a G-code interpreter for the MINT system that will allow you to upload and execute drawing commands.
 
-I've added detailed comments to the MINT code to make it more understandable. Here's an explanation of how the code works:
+Now let me create a guide for uploading and running G-code to draw with your system:
 
-### Structure Overview
+I've created two important resources for you:
 
-The MINT code implements a simple stepper motor control system with these key components:
+1. **G-code Interpreter for MINT**: This enhanced version of the stepper control code adds the ability to parse and execute G-code commands for drawing.
 
-1. **Port Configuration (Function A)**:
-   - Maps the TEC-1 ports to the stepper motor pins
-   - X motor uses ports 3, 4, 5, and 6
-   - Y motor uses ports 7, 8, 9, and 10
+2. **Guide to Uploading G-code**: A comprehensive guide that explains how to use the system for drawing.
 
-2. **Position Tracking (Functions B, O, P, Q, R)**:
-   - Keeps track of current X and Y positions
-   - Provides functions to increment/decrement positions
+### How the G-code Interpreter Works
 
-3. **Motor Control (Functions F-M)**:
-   - Implements the 4-phase sequence for each stepper motor
-   - Each function activates one coil in the stepper motor sequence
+The interpreter I've created can understand these G-code commands:
+- `G0 X## Y##` - Rapid movement (pen up)
+- `G1 X## Y##` - Line drawing (pen down)
+- `G28` - Home all axes
+- `M0` - Lift pen up
+- `M1` - Put pen down
 
-4. **Movement Algorithm (Functions S, T, U, V, W)**:
-   - Uses a simple version of Bresenham's line algorithm
-   - Allows diagonal movement by determining which axis needs more steps
-   - Handles both positive and negative movements
+### Key Improvements in this Version:
 
-5. **Homing Sequence (Function X)**:
-   - Simulates a homing sequence by moving motors in patterns
-   - Resets position counters to zero
+1. **Pen Control**: Added functions to control a pen mechanism (up/down)
+2. **G-code Parsing**: Function Z now reads and interprets simple G-code commands
+3. **Position Tracking**: Better position tracking to support absolute movements
+4. **Unified Startup**: Function 0 initializes everything with a single command
 
-6. **User Interface (Functions Y, Z)**:
-   - Provides a menu-driven interface for controlling the system
-   - Processes user input to command the stepper motors
+### How to Upload G-code:
 
-### How to Run the Program
+There are two main methods for uploading G-code:
 
-1. First, initialize the system by running function `A`
-2. Then run function `X` to perform the homing sequence
-3. Finally, run function `Z` to start the main program loop
+1. **Manual Entry**: Type each command at the prompt and press Enter
+2. **Batch Upload**: Use your terminal's "Send Text File" feature to upload a prepared G-code file
 
-The menu provides these options:
-- Option 1: Move to home position (0,0)
-- Option 2: Move forward 50 steps in Y direction
-- Option 3: Move right 50 steps in X direction
-- Option 4: Move diagonally 50,50 steps
-- Option 5: Rehome the system
+### Adding a Physical Pen Mechanism:
 
-### Limitations and Notes
+To make your EtchABot actually draw, you'll need to add a pen lifting mechanism. The guide suggests three options:
 
-1. **Fixed Step Sizes**: The menu options use predefined step sizes
-2. **No Acceleration**: The implementation uses fixed timing without acceleration profiles
-3. **No Endstop Detection**: Unlike the Arduino code, this doesn't have endstop handling
-4. **Limited Error Handling**: No checking for movement limits or errors
+1. **Servo Motor**: Best option - gives precise pen control
+2. **Solenoid**: Simpler but more mechanical approach
+3. **Manual Control**: If you prefer to manually lift/lower the pen
 
-Remember that MINT is a very minimalist language with significant constraints. This implementation focuses on the core functionality of controlling stepper motors while working within those constraints.
+### Example Drawing Programs:
+
+The guide includes example G-code for drawing:
+- A square
+- A triangle
+- A circle approximation (using straight line segments)
+
+### Getting Started:
+
+1. Load the interpreter code into your TEC-1
+2. Run function `0` to initialize the system
+3. The system will home itself and then display the G-code prompt
+4. Begin entering G-code commands or upload your drawing file
+
+```
+// G-code interpreter for MINT
+// Handles G0/G1 movement commands for drawing
+
+// Function A: Port definitions (motor pin assignments)
+// X stepper: 3, 4, 5, 6 (p, q, r, s)
+// Y stepper: 7, 8, 9, 10 (t, u, v, w)
+:A 3 p! 4 q! 5 r! 6 s! 7 t! 8 u! 9 v! 10 w! ; 
+
+// Function B: Initialize position and state variables
+// a = current X position, b = current Y position
+// h = pen state (0=up, 1=down)
+:B 0 a! 0 b! 0 h! 0 c! 0 d! ; 
+
+// Function C: Print current position and state
+:C a . `X:` b . `Y:` h . `Pen:` ;
+
+// Function D: Short delay
+:D 5 x! ;
+
+// Function E: Longer delay
+:E 10 y! ;
+
+// Function F to M: Step motor control phases
+// (Same as previous implementation)
+:F 0 x! p /O x q /O 0 r /O 0 s /O ; 
+:G 0 x! t /O x u /O 0 v /O 0 w /O ; 
+:H 1 x! p /O x q /O 0 r /O 0 s /O ; 
+:I 1 x! t /O x u /O 0 v /O 0 w /O ; 
+:J 0 x! p /O 0 q /O x r /O 0 s /O ; 
+:K 0 x! t /O 0 u /O x v /O 0 w /O ; 
+:L 0 x! p /O 0 q /O 0 r /O x s /O ; 
+:M 0 x! t /O 0 u /O 0 v /O x w /O ; 
+
+// Function N: Delay function
+:N n! ( D ) ;
+
+// Function O: Increment X position
+:O a 1 + a! ;
+
+// Function P: Decrement X position
+:P a 1 - a! ;
+
+// Function Q: Increment Y position
+:Q b 1 + b! ;
+
+// Function R: Decrement Y position
+:R b 1 - b! ;
+
+// Function S: Calculate step parameters for line drawing
+:S c! d! c d > ( c d - e! 0 f! c g! )
+/E ( d c - e! 1 f! d g! ) ;
+
+// Function T: Move X motor in sequence
+:T e! f! f 0 = ( H e ( J E M E L E ) )
+/E ( I e ( K E M E L E ) ) ;
+
+// Function U: Move Y motor in sequence
+:U e! f! f 0 = ( F e ( J E M E L E ) )
+/E ( G e ( K E M E L E ) ) ;
+
+// Function V: Main movement algorithm
+// Implements Bresenham's line algorithm
+:V c! d! c 0 = d 0 = & ( ) /E (
+  c 0 < ( 0 c - c! ) ( ) 
+  d 0 < ( 0 d - d! ) ( ) 
+  S e f g ! 
+  f 0 = ( 
+    c 0 > ( U e f O ) ( ) 
+    c 0 < ( T e f P ) ( ) 
+  ) /E ( 
+    d 0 > ( T e f Q ) ( ) 
+    d 0 < ( U e f R ) ( ) 
+  ) 
+) ;
+
+// Function W: Move to absolute position
+// c = target X, d = target Y
+:W c! d! 
+  // Calculate relative movement needed
+  c a - i!
+  d b - j!
+  // Move using relative movement
+  i j V
+  // Update current position
+  c a!
+  d b!
+  `moveDone` 
+;
+
+// Function X: Homing sequence
+:X 0 m! 0 n! 0 o! 0 p! 400 k! B F G 
+  `homing` 
+  5 ( 100 i! ( D L ) i! ( D ) ) 
+  `xMin` 
+  5 ( 100 i! ( D J ) i! ( D ) ) 
+  `yMin` 
+  `homeDone` 
+;
+
+// Function Y: Pen control
+// i = 0: pen up, i = 1: pen down
+// Connect a servo or solenoid to an additional port for actual pen control
+:Y i! i h! `Pen ` i . /N ;
+
+// Function Z: G-code parsing and execution
+:Z `G-code:` /N
+  // Read G-code command
+  /K 48 - i!  // First character (G)
+  
+  // Handle G0/G1 (movement)
+  i 0 = (
+    /K 48 - j!  // Parse number after G
+    j 0 = j 1 = + (  // Check if G0 or G1
+      // Read X value
+      /K       // Skip the space after G0/G1
+      /K 48 - j!  // Check if X
+      j 40 - /T = (  // ASCII 'X' - 48 = 40
+        // Parse X coordinate
+        /K 48 - c!  // Read tens digit
+        c 10 * k!
+        /K 48 - c!  // Read units digit
+        k c + c!    // c = full X value
+      )
+      
+      // Read Y value
+      /K       // Skip the space after X value
+      /K 48 - j!  // Check if Y
+      j 41 - /T = (  // ASCII 'Y' - 48 = 41
+        // Parse Y coordinate
+        /K 48 - d!  // Read tens digit
+        d 10 * k!
+        /K 48 - d!  // Read units digit
+        k d + d!    // d = full Y value
+      )
+      
+      // Execute movement
+      c d W
+    )
+  )
+
+  // Handle G28 (homing)
+  i 2 = (
+    /K 48 - j!  // Parse number after G
+    j 8 = (  // Check if G28
+      X
+    )
+  )
+  
+  // Handle M0/M1 (pen control)
+  i 13 = (  // ASCII 'M' - 48 = 13
+    /K 48 - j!  // Parse number after M
+    j 0 = (  // Check if M0 (pen up)
+      0 Y
+    )
+    j 1 = (  // Check if M1 (pen down)
+      1 Y
+    )
+  )
+  
+  // Print status and continue receiving commands
+  C
+  /N
+  Z
+;
+
+// Function 0: Start the system
+// Call this function to begin
+:0 A X Z ;
+```
+
+
 
