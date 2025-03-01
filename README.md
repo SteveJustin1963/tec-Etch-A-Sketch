@@ -1467,3 +1467,587 @@ The guide includes example G-code for drawing:
 
 
 
+# z80
+# Z80 Assembly for Etch A Sketch Controller - How It Works
+
+This code is a Z80 assembly implementation of a controller for an Etch A Sketch-like drawing device using stepper motors. The simulation trace shows it executing with linear interpolation between points.
+
+## Core Concepts
+
+### Hardware Interface
+The code controls two stepper motors (X and Y) through 4 I/O ports:
+- `X_STEP` (port $00): Pulses to step the X motor
+- `X_DIR` (port $01): Sets X direction (0=negative, 1=positive)
+- `Y_STEP` (port $02): Pulses to step the Y motor
+- `Y_DIR` (port $03): Sets Y direction (0=negative, 1=positive)
+
+### Memory Usage
+It uses memory locations for tracking position and state:
+- `CUR_X/Y` ($8000-$8001): Current position
+- `MODE` ($8002): Absolute(1) or incremental(0) positioning
+- `TARG_X/Y` ($8003-$8004): Target position
+- `DELTA_X/Y` ($8005-$8006): Distance between current and target
+- `TEMP` ($8007): Temporary counter
+- `INTERP_X/Y` ($8008-$8009): Interpolated points
+
+## Program Flow
+
+1. **Initialization**: Sets absolute mode and zeros position coordinates
+2. **Command Execution**: Reads G-code equivalent commands from data table
+3. **Movement Implementation**: Uses interpolation for smooth diagonal lines
+
+### G-Code Commands
+The code processes simplified G-code commands:
+- `H`: Home (G28) - Return to origin (0,0)
+- `A`: Absolute mode (G90) - Positions are global coordinates
+- `I`: Incremental mode (G91) - Positions are relative to current
+- `M`: Move (G0/G1) - Move to specified X,Y coordinates
+
+### Movement with Interpolation
+When the system needs to move from one point to another:
+
+1. **Decision to Interpolate**:
+   - For small moves (<2 units), direct movement
+   - For larger moves, break into multiple steps
+
+2. **Interpolation Process**:
+   - Calculate total distance for X and Y
+   - Divide by step count (INTERP_STEPS = 10)
+   - Generate intermediate coordinates
+   - Move to each intermediate point sequentially
+
+3. **Motor Control**:
+   - For each step, set direction pins based on movement direction
+   - Pulse step pins with proper timing
+   - Use hardware delay loops for timing
+
+## Execution Example from Trace
+
+Looking at the simulation trace (lines ~60-440), we can see:
+1. The program starts by reading the position command (at $021D)
+2. It fetches X=50 (32h) and Y=25 (19h) coordinates
+3. It calculates the delta (difference from current position)
+4. Because the move is large, it enters interpolation
+5. It calculates 10 intermediate points
+6. For each point:
+   - Sets X and Y direction pins
+   - Pulses the step pins with timing delays
+   - Repeats until reaching target
+
+The long series of similar operations in the trace (repeated stepping) shows the motors advancing through the calculated intermediate positions, producing smooth, simultaneous X and Y movement that results in diagonal lines rather than a "stair step" pattern.
+
+This creates a much more natural drawing effect than simply moving X and Y separately, which would create jagged lines that only go horizontally or vertically at any given moment.
+
+```
+
+; Z80 Assembly for Etch A Sketch with 4-wire steppers
+; Updated with linear interpolation for smoother movement
+
+; I/O Ports
+X_STEP  EQU $00    ; X stepper step pin
+X_DIR   EQU $01    ; X stepper direction pin
+Y_STEP  EQU $02    ; Y stepper step pin
+Y_DIR   EQU $03    ; Y stepper direction pin
+DEBUG1  EQU $FF    ; Debug: Y logic entry/exit
+DEBUG2  EQU $FE    ; Debug: Stepper routines (1=X, 2=Y)
+
+; Constants
+X_MAX   EQU 100    ; Max X units
+Y_MAX   EQU 50     ; Max Y units
+STEPS_PER_UNIT EQU 10  ; Steps per unit
+INTERP_STEPS EQU 10   ; Number of interpolation steps
+
+; Memory locations
+CUR_X   EQU $8000  ; Current X position (1 byte)
+CUR_Y   EQU $8001  ; Current Y position (1 byte)
+MODE    EQU $8002  ; 0 = incremental (G91), 1 = absolute (G90)
+TARG_X  EQU $8003  ; Target X position
+TARG_Y  EQU $8004  ; Target Y position
+DELTA_X EQU $8005  ; Delta X for interpolation
+DELTA_Y EQU $8006  ; Delta Y for interpolation
+TEMP    EQU $8007  ; Temporary storage
+INTERP_X EQU $8008 ; Current interpolated X position
+INTERP_Y EQU $8009 ; Current interpolated Y position
+
+; Program start
+        ORG $0000
+
+START:
+        LD A, 1          ; Set absolute mode (G90)
+        LD (MODE), A
+        LD A, 0          ; Initialize X, Y to 0
+        LD (CUR_X), A
+        LD (CUR_Y), A
+
+        CALL HOME        ; G28 - Home
+
+        LD HL, GCODE_DATA
+EXECUTE:
+        LD A, (HL)
+        CP 0             ; End of sequence?
+        JP Z, END
+        CALL PROCESS_GCODE
+        INC HL
+        JP EXECUTE
+
+PROCESS_GCODE:
+        CP 'H'           ; G28 (Home)
+        JP Z, HOME
+        CP 'A'           ; G90 (Absolute)
+        JP Z, SET_ABS
+        CP 'I'           ; G91 (Incremental)
+        JP Z, SET_INC
+        CP 'M'           ; G0/G1 (Move)
+        JP Z, MOVE_TO
+        RET
+
+SET_ABS:
+        LD A, 1
+        LD (MODE), A
+        RET
+
+SET_INC:
+        LD A, 0
+        LD (MODE), A
+        RET
+
+HOME:
+        LD A, (CUR_X)
+        OR A
+        JP Z, HOME_Y
+        CALL MOVE_X_NEG
+HOME_Y:
+        LD A, (CUR_Y)
+        OR A
+        JP Z, HOME_DONE
+        CALL MOVE_Y_NEG
+HOME_DONE:
+        LD A, 0
+        LD (CUR_X), A
+        LD (CUR_Y), A
+        RET
+
+; Move to target (X in B, Y in C)
+MOVE_TO:
+        PUSH DE
+        INC HL
+        LD B, (HL)       ; Target X
+        INC HL
+        LD C, (HL)       ; Target Y
+
+        ; Bounds check
+        LD A, B
+        CP X_MAX+1
+        JP NC, MOVE_END
+        LD A, C
+        CP Y_MAX+1
+        JP NC, MOVE_END
+
+        ; Calculate target position
+        LD A, (MODE)
+        OR A
+        JP NZ, ABS_MOVE
+        ; Incremental
+        LD A, (CUR_X)
+        ADD A, B
+        LD B, A
+        LD A, (CUR_Y)
+        ADD A, C
+        LD C, A
+        JP MOVE_CALC
+ABS_MOVE:
+        ; Absolute: B, C already set
+
+MOVE_CALC:
+        ; Store target positions
+        LD A, B
+        LD (TARG_X), A
+        LD A, C
+        LD (TARG_Y), A
+
+        ; Calculate deltas (target - current)
+        LD A, B
+        LD D, A          ; D = Target X
+        LD A, (CUR_X)
+        LD E, A          ; E = Current X
+        SUB D            ; A = Current X - Target X
+        JP NC, X_IS_GREATER
+        NEG              ; Make A positive
+X_IS_GREATER:
+        LD (DELTA_X), A  ; Store absolute delta X
+
+        LD A, C
+        LD D, A          ; D = Target Y
+        LD A, (CUR_Y)
+        LD E, A          ; E = Current Y
+        SUB D            ; A = Current Y - Target Y
+        JP NC, Y_IS_GREATER
+        NEG              ; Make A positive
+Y_IS_GREATER:
+        LD (DELTA_Y), A  ; Store absolute delta Y
+
+        ; Skip interpolation if both deltas are small
+        LD A, (DELTA_X)
+        CP 2
+        JP C, MOVE_DIRECT
+        LD A, (DELTA_Y)
+        CP 2
+        JP C, MOVE_DIRECT
+
+        ; Interpolate between points
+        CALL INTERPOLATE
+        JP MOVE_END
+
+MOVE_DIRECT:
+        ; Direct movement for small distances
+        LD A, (TARG_X)
+        LD B, A          ; B = target X
+        LD A, (TARG_Y)
+        LD C, A          ; C = target Y
+        CALL MOVE_DIRECT_XY
+
+MOVE_END:
+        LD A, (TARG_X)
+        LD (CUR_X), A
+        LD A, (TARG_Y)
+        LD (CUR_Y), A
+        POP DE
+        RET
+
+; Direct move to X,Y without interpolation
+MOVE_DIRECT_XY:
+        ; X movement
+        LD A, (CUR_X)
+        SUB B
+        JP Z, MOVE_D_Y
+        JP C, MOVE_D_X_POS
+        CALL MOVE_X_NEG
+        JP MOVE_D_Y
+MOVE_D_X_POS:
+        CALL MOVE_X_POSITIVE
+
+MOVE_D_Y:
+        LD A, 1          ; Debug: Y logic entered
+        OUT (DEBUG1), A
+        LD A, (CUR_Y)
+        SUB C            ; A = currentY - targetY
+        JP Z, MOVE_D_END ; No Y move needed
+        JP C, MOVE_D_Y_POS ; Target > current
+        CALL MOVE_Y_NEG
+        JP MOVE_D_END
+MOVE_D_Y_POS:
+        CALL MOVE_Y_POSITIVE
+
+MOVE_D_END:
+        LD A, B
+        LD (CUR_X), A
+        LD A, C
+        LD (CUR_Y), A
+        LD A, 0          ; Debug: Y logic exited
+        OUT (DEBUG1), A
+        RET
+
+; Perform linear interpolation
+INTERPOLATE:
+        PUSH BC
+        PUSH DE
+        PUSH HL
+
+        ; Set up interpolation counter
+        LD A, INTERP_STEPS
+        LD (TEMP), A
+
+INTERP_LOOP:
+        ; Calculate next interpolated point
+
+        ; X interpolation
+        LD A, (TARG_X)
+        LD B, A          ; B = Target X
+        LD A, (CUR_X)
+        LD C, A          ; C = Start X
+
+        ; Calculate X step = (Target X - Start X) / INTERP_STEPS
+        LD A, B
+        SUB C            ; A = Target X - Start X
+        
+        ; Divide by steps - we'll do a simple approximation
+        ; D will hold the integral part, A will have the fractional part
+        LD D, 0          ; D = integral X step (may be 0)
+        
+        CP INTERP_STEPS
+        JP C, SMALL_X_STEP   ; If delta < steps, just use fractional
+        
+        ; Divide A by INTERP_STEPS (simple division)
+        LD E, INTERP_STEPS
+DIV_X_LOOP:
+        SUB E
+        INC D
+        CP E
+        JP NC, DIV_X_LOOP
+        
+SMALL_X_STEP:
+        ; D now holds integral X step (may be 0)
+        ; A holds remainder (fractional part)
+        
+        ; Now calculate current step position
+        ; new_x = start_x + (step * current_step)
+        LD A, (TEMP)
+        LD E, A          ; E = steps remaining
+        LD A, INTERP_STEPS
+        SUB E            ; A = current step number
+        
+        ; Multiply by step size
+        LD E, A          ; E = current step
+        LD A, D          ; A = integral step
+        LD H, 0          ; HL = 0
+        LD L, A          ; HL = integral step
+        
+MULT_X_LOOP:
+        LD A, E
+        OR A
+        JP Z, MULT_X_DONE
+        ADD HL, HL       ; Shift left = multiply by 2
+        DEC E
+        JP MULT_X_LOOP
+        
+MULT_X_DONE:
+        ; HL = step increment
+        LD A, C          ; A = Start X
+        ADD A, L         ; A = Start X + step increment
+        LD (INTERP_X), A ; Store interpolated X
+
+        ; Y interpolation (similar to X)
+        LD A, (TARG_Y)
+        LD B, A          ; B = Target Y
+        LD A, (CUR_Y)
+        LD C, A          ; C = Start Y
+
+        ; Calculate Y step = (Target Y - Start Y) / INTERP_STEPS
+        LD A, B
+        SUB C            ; A = Target Y - Start Y
+        
+        ; Divide by steps - similar to X
+        LD D, 0          ; D = integral Y step
+        
+        CP INTERP_STEPS
+        JP C, SMALL_Y_STEP
+        
+        ; Divide A by INTERP_STEPS
+        LD E, INTERP_STEPS
+DIV_Y_LOOP:
+        SUB E
+        INC D
+        CP E
+        JP NC, DIV_Y_LOOP
+        
+SMALL_Y_STEP:
+        ; D now holds integral Y step
+        ; A holds remainder
+        
+        ; Calculate current step position
+        LD A, (TEMP)
+        LD E, A          ; E = steps remaining
+        LD A, INTERP_STEPS
+        SUB E            ; A = current step number
+        
+        ; Multiply by step size
+        LD E, A          ; E = current step
+        LD A, D          ; A = integral step
+        LD H, 0
+        LD L, A
+        
+MULT_Y_LOOP:
+        LD A, E
+        OR A
+        JP Z, MULT_Y_DONE
+        ADD HL, HL       ; Multiply by 2
+        DEC E
+        JP MULT_Y_LOOP
+        
+MULT_Y_DONE:
+        ; HL = step increment
+        LD A, C          ; A = Start Y
+        ADD A, L         ; A = Start Y + step increment
+        LD (INTERP_Y), A ; Store interpolated Y
+
+        ; Move to interpolated position
+        LD A, (INTERP_X)
+        LD B, A          ; B = interpolated X
+        LD A, (INTERP_Y)
+        LD C, A          ; C = interpolated Y
+        CALL MOVE_DIRECT_XY
+
+        ; Decrement counter and loop
+        LD A, (TEMP)
+        DEC A
+        LD (TEMP), A
+        JP NZ, INTERP_LOOP
+
+        POP HL
+        POP DE
+        POP BC
+        RET
+
+; Move X positive (A = steps)
+MOVE_X_POSITIVE:
+        PUSH DE
+        LD D, A
+        LD A, 1
+        OUT (X_DIR), A
+        CALL STEP_X
+        POP DE
+        RET
+
+; Move X negative (A = steps)
+MOVE_X_NEG:
+        PUSH DE
+        NEG
+        LD D, A
+        LD A, 0
+        OUT (X_DIR), A
+        CALL STEP_X
+        POP DE
+        RET
+
+; Move Y positive (A = steps)
+MOVE_Y_POSITIVE:
+        PUSH DE
+        LD D, A
+        LD A, 1
+        OUT (Y_DIR), A
+        CALL STEP_Y
+        POP DE
+        RET
+
+; Move Y negative (A = steps)
+MOVE_Y_NEG:
+        PUSH DE
+        NEG
+        LD D, A
+        LD A, 0
+        OUT (Y_DIR), A
+        CALL STEP_Y
+        POP DE
+        RET
+
+; Step X motor (D = units)
+STEP_X:
+        PUSH BC
+        LD A, 1          ; Debug: X stepping
+        OUT (DEBUG2), A
+        LD E, STEPS_PER_UNIT
+STEP_X_LOOP:
+        LD A, 1
+        OUT (X_STEP), A
+        CALL DELAY
+        LD A, 0
+        OUT (X_STEP), A
+        CALL DELAY
+        DEC E
+        JP NZ, STEP_X_LOOP
+        DEC D
+        JP NZ, STEP_X_LOOP
+        LD A, 0          ; Debug: X done
+        OUT (DEBUG2), A
+        POP BC
+        RET
+
+; Step Y motor (D = units)
+STEP_Y:
+        PUSH BC
+        LD A, 2          ; Debug: Y stepping
+        OUT (DEBUG2), A
+        LD E, STEPS_PER_UNIT
+STEP_Y_LOOP:
+        LD A, 1
+        OUT (Y_STEP), A
+        CALL DELAY
+        LD A, 0
+        OUT (Y_STEP), A
+        CALL DELAY
+        DEC E
+        JP NZ, STEP_Y_LOOP
+        DEC D
+        JP NZ, STEP_Y_LOOP
+        LD A, 0          ; Debug: Y done
+        OUT (DEBUG2), A
+        POP BC
+        RET
+
+; Delay (~50µs at 4MHz)
+DELAY:
+        PUSH BC
+        LD BC, 0001H     ; 200 cycles for ~50µs at 4MHz
+DELAY_LOOP:
+        DEC BC
+        LD A, B
+        OR C
+        JP NZ, DELAY_LOOP
+        POP BC
+        RET
+
+; G-code sequence: Draw a small "circle" (4-point approximation)
+GCODE_DATA:
+        DB 'H'           ; G28 - Home to (0,0)
+        DB 'A'           ; G90 - Absolute mode
+        DB 'M', 50, 25   ; G1 X50 Y25 (center)
+        DB 'M', 60, 25   ; G1 X60 Y25 (right)
+        DB 'M', 50, 35   ; G1 X50 Y35 (top)
+        DB 'M', 40, 25   ; G1 X40 Y25 (left)
+        DB 'M', 50, 15   ; G1 X50 Y15 (bottom)
+        DB 'M', 50, 25   ; G1 X50 Y25 (close circle)
+        DB 'M', 0, 0     ; G0 X0 Y0 (return home)
+        DB 0             ; End
+
+END:
+        HALT
+```
+The program contains a G-code sequence embedded at the end in the `GCODE_DATA` section. This sequence is designed to draw a diamond-like shape (or a simple approximation of a circle using straight lines). Let me explain the sequence:
+
+```assembly
+; G-code sequence: Draw a small "circle" (4-point approximation)
+GCODE_DATA:
+        DB 'H'           ; G28 - Home to (0,0)
+        DB 'A'           ; G90 - Absolute mode
+        DB 'M', 50, 25   ; G1 X50 Y25 (center)
+        DB 'M', 60, 25   ; G1 X60 Y25 (right)
+        DB 'M', 50, 35   ; G1 X50 Y35 (top)
+        DB 'M', 40, 25   ; G1 X40 Y25 (left)
+        DB 'M', 50, 15   ; G1 X50 Y15 (bottom)
+        DB 'M', 50, 25   ; G1 X50 Y25 (close circle)
+        DB 'M', 0, 0     ; G0 X0 Y0 (return home)
+        DB 0             ; End
+```
+
+Here's what this code draws, step by step:
+
+1. `H` - Homes the device, moving to position (0,0)
+2. `A` - Sets to absolute positioning mode (coordinates are global)
+3. `M, 50, 25` - Moves to position X=50, Y=25 (this is the center of the shape)
+4. `M, 60, 25` - Moves right to position X=60, Y=25 (10 units right from center)
+5. `M, 50, 35` - Moves to position X=50, Y=35 (top point, 10 units up from center)
+6. `M, 40, 25` - Moves to position X=40, Y=25 (left point, 10 units left from center)
+7. `M, 50, 15` - Moves to position X=50, Y=15 (bottom point, 10 units down from center)
+8. `M, 50, 25` - Returns to center at X=50, Y=25 (completing the shape)
+9. `M, 0, 0` - Returns home to position X=0, Y=0
+
+The shape being drawn is a diamond (or rhombus) with points at the right, top, left, and bottom of the center point. The comment in the code refers to it as a "4-point approximation" of a circle, because it uses just 4 points (plus the center) to create a simple closed shape.
+
+Visually, it would look something like this:
+
+```
+        (50,35)
+           ^
+           |
+           |
+(40,25) <--+-->(60,25)
+           |
+           |
+           v
+        (50,15)
+```
+
+The linear interpolation we saw in the execution trace is particularly important for this drawing, as it creates smooth diagonal lines between these points, rather than jagged stair-step movements. The interpolation divides each movement into 10 smaller steps, so the pen/stylus moves diagonally in a straight line rather than moving in X then Y directions separately.
+
+This simplified G-code format is a compact way to encode drawing instructions in this Z80 assembly program, where each command is a single letter followed by coordinate parameters when needed.
+
