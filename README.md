@@ -1,6 +1,6 @@
 # TEC-1 EtchABot Controller - Complete Guide
 
-<img width="1024" height="848" alt="image" src="https://github.com/user-attachments/assets/67d536b8-8cdd-4f08-abfd-5bf828fc2e51" />
+![Etchasketch](https://github.com/user-attachments/assets/0f841757-604a-4950-91dd-cfc199b2cceb)
 
 
 
